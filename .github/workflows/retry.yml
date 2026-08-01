@@ -1,0 +1,73 @@
+name: Tentar criar VM Oracle
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  tentar-criar-vm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar OCI CLI
+        run: pip install oci-cli
+
+      - name: Configurar credenciais OCI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config << CONFIG
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ secrets.OCI_REGION }}
+          key_file=~/.oci/key.pem
+          CONFIG
+
+      - name: Verificar se VM ja existe
+        id: check
+        run: |
+          EXISTE=$(oci compute instance list \
+            --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" \
+            --display-name "secretaria-whatsapp" \
+            --lifecycle-state RUNNING \
+            --query "data[0].id" --raw-output 2>/dev/null || echo "")
+          if [ -n "$EXISTE" ]; then
+            echo "ja_existe=true" >> $GITHUB_OUTPUT
+          else
+            echo "ja_existe=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Tentar criar a instancia
+        if: steps.check.outputs.ja_existe == 'false'
+        run: |
+          RESULT=$(oci compute instance launch \
+            --compartment-id "${{ secrets.OCI_TENANCY_OCID }}" \
+            --availability-domain "EfRU:SA-VINHEDO-1-AD-1" \
+            --shape "VM.Standard.A1.Flex" \
+            --shape-config '{"ocpus": 2, "memoryInGBs": 12}' \
+            --image-id "${{ secrets.OCI_IMAGE_ID }}" \
+            --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
+            --display-name "secretaria-whatsapp" \
+            --assign-public-ip true \
+            --boot-volume-size-in-gbs 200 \
+            --metadata "{\"ssh_authorized_keys\": \"${{ secrets.OCI_SSH_KEY }}\"}" \
+            2>&1)
+
+          echo "$RESULT"
+
+          if echo "$RESULT" | grep -q "Out of host capacity"; then
+            echo "Sem capacidade ainda, tenta na proxima execucao."
+          elif echo "$RESULT" | grep -q "TooManyRequests"; then
+            echo "Rate limit atingido, tenta na proxima execucao."
+          elif echo "$RESULT" | grep -qi "error"; then
+            oci ons message publish --topic-id "${{ secrets.OCI_TOPIC_ID }}" \
+              --title "Erro ao criar VM" \
+              --message-body "Erro diferente de capacidade encontrado. Verifique os logs do GitHub Actions."
+          else
+            oci ons message publish --topic-id "${{ secrets.OCI_TOPIC_ID }}" \
+              --title "VM criada com sucesso!" \
+              --message-body "Sua VM secretaria-whatsapp foi criada na Oracle Cloud. Acesse o painel para pegar o IP publico."
+          fi
