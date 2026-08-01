@@ -54,7 +54,7 @@ jobs:
             --assign-public-ip true \
             --boot-volume-size-in-gbs 200 \
             --metadata "{\"ssh_authorized_keys\": \"${{ secrets.OCI_SSH_KEY }}\"}" \
-            2>&1)
+            2>&1) || true
 
           echo "$RESULT"
 
