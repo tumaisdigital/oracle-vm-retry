@@ -38,6 +38,7 @@ jobs:
             echo "ja_existe=false" >> $GITHUB_OUTPUT
           fi
 
+
       - name: Tentar criar a instancia
         if: steps.check.outputs.ja_existe == 'false'
         run: |
@@ -60,12 +61,14 @@ jobs:
             echo "Sem capacidade ainda, tenta na proxima execucao."
           elif echo "$RESULT" | grep -q "TooManyRequests"; then
             echo "Rate limit atingido, tenta na proxima execucao."
-          elif echo "$RESULT" | grep -qi "error"; then
+          elif echo "$RESULT" | grep -qi "timed out"; then
+            echo "Timeout de conexao, tenta na proxima execucao."
+          elif echo "$RESULT" | grep -q "ServiceError\|RequestException"; then
             oci ons message publish --topic-id "${{ secrets.OCI_TOPIC_ID }}" \
               --title "Erro ao criar VM" \
-              --message-body "Erro diferente de capacidade encontrado. Verifique os logs do GitHub Actions."
+              --body "Erro diferente de capacidade encontrado. Verifique os logs do GitHub Actions."
           else
             oci ons message publish --topic-id "${{ secrets.OCI_TOPIC_ID }}" \
               --title "VM criada com sucesso!" \
-              --message-body "Sua VM secretaria-whatsapp foi criada na Oracle Cloud. Acesse o painel para pegar o IP publico."
+              --body "Sua VM secretaria-whatsapp foi criada na Oracle Cloud. Acesse o painel para pegar o IP publico."
           fi
