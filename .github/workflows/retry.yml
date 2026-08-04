@@ -72,3 +72,30 @@ jobs:
               --title "VM criada com sucesso!" \
               --body "Sua VM secretaria-whatsapp foi criada na Oracle Cloud. Acesse o painel para pegar o IP publico."
           fi
+
+
+      - name: Salvar status
+        if: always()
+        run: |
+          STATUS="tentando"
+          MENSAGEM="Aguardando proxima tentativa"
+
+          if [ "${{ steps.check.outputs.ja_existe }}" == "true" ]; then
+            STATUS="sucesso"
+            MENSAGEM="VM ja esta ativa"
+          fi
+
+          cat > status.json << JSON
+          {
+            "status": "$STATUS",
+            "data": "$(date '+%Y-%m-%d')",
+            "horario": "$(date '+%H:%M:%S')",
+            "mensagem": "$MENSAGEM"
+          }
+          JSON
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add status.json
+          git commit -m "Atualiza status" || echo "Nada para commitar"
+          git push
