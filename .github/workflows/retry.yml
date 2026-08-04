@@ -2,11 +2,17 @@ name: Tentar criar VM Oracle
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
 
 jobs:
   tentar-criar-vm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - name: Instalar OCI CLI
         run: pip install oci-cli
 
@@ -33,13 +39,13 @@ jobs:
             --lifecycle-state RUNNING \
             --query "data[0].id" --raw-output 2>/dev/null || echo "")
           if [ -n "$EXISTE" ]; then
-            echo "ja_existe=true" >> $GITHUB_OUTPUT
+            echo "ja_existe=true" >> "$GITHUB_OUTPUT"
           else
-            echo "ja_existe=false" >> $GITHUB_OUTPUT
+            echo "ja_existe=false" >> "$GITHUB_OUTPUT"
           fi
 
-
       - name: Tentar criar a instancia
+        id: create
         if: steps.check.outputs.ja_existe == 'false'
         run: |
           RESULT=$(oci compute instance launch \
@@ -58,38 +64,47 @@ jobs:
           echo "$RESULT"
 
           if echo "$RESULT" | grep -q "Out of host capacity"; then
-            echo "Sem capacidade ainda, tenta na proxima execucao."
+            echo "status=sem_capacidade" >> "$GITHUB_OUTPUT"
+            echo "mensagem=Sem capacidade disponivel ainda, tenta na proxima execucao" >> "$GITHUB_OUTPUT"
           elif echo "$RESULT" | grep -q "TooManyRequests"; then
-            echo "Rate limit atingido, tenta na proxima execucao."
+            echo "status=rate_limit" >> "$GITHUB_OUTPUT"
+            echo "mensagem=Rate limit da Oracle atingido, tenta na proxima execucao" >> "$GITHUB_OUTPUT"
           elif echo "$RESULT" | grep -qi "timed out"; then
-            echo "Timeout de conexao, tenta na proxima execucao."
+            echo "status=tentando" >> "$GITHUB_OUTPUT"
+            echo "mensagem=Timeout de conexao com a Oracle, tenta na proxima execucao" >> "$GITHUB_OUTPUT"
           elif echo "$RESULT" | grep -q "ServiceError\|RequestException"; then
+            echo "status=erro" >> "$GITHUB_OUTPUT"
+            echo "mensagem=Erro diferente de falta de capacidade, verifique os logs do GitHub Actions" >> "$GITHUB_OUTPUT"
             oci ons message publish --topic-id "${{ secrets.OCI_TOPIC_ID }}" \
               --title "Erro ao criar VM" \
-              --body "Erro diferente de capacidade encontrado. Verifique os logs do GitHub Actions."
+              --body "Erro diferente de capacidade encontrado. Verifique os logs do GitHub Actions." || true
           else
+            echo "status=sucesso" >> "$GITHUB_OUTPUT"
+            echo "mensagem=VM criada com sucesso, acesse o painel Oracle para pegar o IP publico" >> "$GITHUB_OUTPUT"
             oci ons message publish --topic-id "${{ secrets.OCI_TOPIC_ID }}" \
               --title "VM criada com sucesso!" \
-              --body "Sua VM secretaria-whatsapp foi criada na Oracle Cloud. Acesse o painel para pegar o IP publico."
+              --body "Sua VM secretaria-whatsapp foi criada na Oracle Cloud. Acesse o painel para pegar o IP publico." || true
           fi
-
 
       - name: Salvar status
         if: always()
         run: |
-          STATUS="tentando"
-          MENSAGEM="Aguardando proxima tentativa"
-
           if [ "${{ steps.check.outputs.ja_existe }}" == "true" ]; then
             STATUS="sucesso"
             MENSAGEM="VM ja esta ativa"
+          elif [ -n "${{ steps.create.outputs.status }}" ]; then
+            STATUS="${{ steps.create.outputs.status }}"
+            MENSAGEM="${{ steps.create.outputs.mensagem }}"
+          else
+            STATUS="erro"
+            MENSAGEM="Step de criacao nao rodou, verifique os logs do GitHub Actions"
           fi
 
           cat > status.json << JSON
           {
             "status": "$STATUS",
-            "data": "$(date '+%Y-%m-%d')",
-            "horario": "$(date '+%H:%M:%S')",
+            "data": "$(date -u '+%Y-%m-%d')",
+            "horario": "$(date -u '+%H:%M:%S')",
             "mensagem": "$MENSAGEM"
           }
           JSON
