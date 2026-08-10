@@ -1,6 +1,6 @@
 {
-  "status": "rate_limit",
+  "status": "sem_capacidade",
   "data": "2026-08-10",
-  "horario": "22:02:47",
-  "mensagem": "Rate limit da Oracle atingido, tenta na proxima execucao"
+  "horario": "22:12:17",
+  "mensagem": "Sem capacidade disponivel ainda, tenta na proxima execucao"
 }
