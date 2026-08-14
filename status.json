@@ -1,6 +1,6 @@
 {
-  "status": "tentando",
+  "status": "rate_limit",
   "data": "2026-08-14",
-  "horario": "15:17:37",
-  "mensagem": "Timeout de conexao com a Oracle, tenta na proxima execucao"
+  "horario": "15:30:57",
+  "mensagem": "Rate limit da Oracle atingido, tenta na proxima execucao"
 }
