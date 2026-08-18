@@ -1,6 +1,6 @@
 {
-  "status": "tentando",
+  "status": "sem_capacidade",
   "data": "2026-08-18",
-  "horario": "14:17:28",
-  "mensagem": "Timeout de conexao com a Oracle, tenta na proxima execucao"
+  "horario": "14:32:42",
+  "mensagem": "Sem capacidade disponivel ainda, tenta na proxima execucao"
 }
