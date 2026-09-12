@@ -1,6 +1,6 @@
 {
-  "status": "sem_capacidade",
+  "status": "erro",
   "data": "2026-09-12",
-  "horario": "07:02:42",
-  "mensagem": "Sem capacidade disponivel ainda, tenta na proxima execucao"
+  "horario": "07:15:54",
+  "mensagem": "Erro diferente de falta de capacidade, verifique os logs do GitHub Actions"
 }
